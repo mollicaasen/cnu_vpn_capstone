@@ -1,0 +1,185 @@
+/* --- CNU VPN PORTAL STYLESHEET --- */
+
+:root {
+    --cnu-blue: #003366;
+    --cnu-silver: #a5acaf;
+    --accent-blue: #0056b3;
+    --bg-dark: #0a0f18;
+    --card-bg: #111827;
+    --text-light: #f8f9fa;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: var(--bg-dark);
+    color: var(--text-light);
+    line-height: 1.6;
+    overflow-x: hidden;
+}
+
+/* Navbar Navigation */
+.navbar {
+    display: flex;
+    justify-content: space-between;
+    padding: 1.5rem 10%;
+    align-items: center;
+    background: rgba(10, 15, 24, 0.8);
+    backdrop-filter: blur(10px);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+.logo {
+    font-size: 1.5rem;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.logo span {
+    color: var(--cnu-silver);
+    font-weight: 300;
+}
+
+.nav-links {
+    list-style: none;
+    display: flex;
+    gap: 2rem;
+    align-items: center;
+}
+
+.nav-links a {
+    text-decoration: none;
+    color: var(--text-light);
+    font-weight: 500;
+    transition: 0.3s;
+    cursor: pointer;
+}
+
+.nav-links a:hover {
+    color: var(--accent-blue);
+}
+
+/* Hero & Visuals */
+.hero {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 5% 10%;
+    min-height: 80vh;
+    background: linear-gradient(rgba(10, 15, 24, 0.85), rgba(10, 15, 24, 0.85)), url('http://googleusercontent.com/image_collection/image_retrieval/10236251377066636635_0');
+    background-size: cover;
+    background-position: center;
+    border-bottom: 2px solid var(--accent-blue);
+}
+
+.hero h1 {
+    font-size: 4rem;
+    line-height: 1.1;
+    margin-bottom: 1.5rem;
+}
+
+.hero h1 span {
+    color: var(--accent-blue);
+    display: block;
+}
+
+/* Buttons */
+.btn-main {
+    background: var(--accent-blue);
+    color: white;
+    border: none;
+    padding: 1rem 2rem;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+.btn-main:hover {
+    background: #004494;
+    transform: translateY(-2px);
+}
+
+.btn-secondary {
+    background: transparent;
+    border: 1px solid var(--cnu-silver);
+    color: white;
+    padding: 1rem 2rem;
+    border-radius: 8px;
+    cursor: pointer;
+    margin-left: 10px;
+}
+
+/* Feature Cards */
+.features {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 2rem;
+    padding: 5rem 10%;
+}
+
+.feature-card {
+    background: var(--card-bg);
+    padding: 3rem 2rem;
+    border-radius: 12px;
+    text-align: center;
+    transition: 0.3s;
+    border: 1px solid rgba(255,255,255,0.05);
+}
+
+.feature-card:hover {
+    transform: translateY(-10px);
+    border-color: var(--accent-blue);
+}
+
+.card-icon {
+    width: 60px;
+    height: 60px;
+    margin-bottom: 1.5rem;
+    filter: drop-shadow(0 0 8px rgba(0, 86, 179, 0.4));
+}
+
+/* Configuration & Terminal */
+.config-terminal {
+    background: #010409;
+    border-radius: 10px;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+    overflow: hidden;
+    font-family: 'Courier New', monospace;
+}
+
+.terminal-header { background: #161b22; padding: 10px 15px; display: flex; gap: 8px; align-items: center; }
+.dot-red { width: 12px; height: 12px; background: #ff5f56; border-radius: 50%; }
+.dot-yellow { width: 12px; height: 12px; background: #ffbd2e; border-radius: 50%; }
+.dot-green { width: 12px; height: 12px; background: #27c93f; border-radius: 50%; }
+.terminal-body { padding: 20px; font-size: 0.9rem; }
+.cmd { color: #f97583; }
+.output { color: #7ee787; opacity: 0.8; }
+
+/* Modal & Authentication */
+.modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.85);
+    backdrop-filter: blur(8px);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-card { background: var(--card-bg); width: 90%; max-width: 400px; border-radius: 15px; overflow: hidden; }
+.modal-header { padding: 20px; background: var(--cnu-blue); display: flex; justify-content: space-between; }
+.modal-body { padding: 30px; }
+
+/* Footer */
+.cnu-footer { background: #05080f; padding: 60px 10% 20px; border-top: 1px solid rgba(165,172,175,0.1); margin-top: 4rem; }
+.footer-bottom { text-align: center; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 20px; font-size: 0.8rem; color: var(--cnu-silver); }
