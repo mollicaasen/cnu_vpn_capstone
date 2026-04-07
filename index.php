@@ -1,24 +1,60 @@
 <?php
 session_start();
 
-// --- AUTHENTICATION LOGIC ---
-$valid_id = "00923451";
-$valid_pass = "capstone2026";
-
+// --- AUTHENTICATION (MySQL users table — same DB as generate_vpn.php / schema.sql) ---
 $login_error = false;
+$login_error_message = '';
 
-// Handle Login
 if (isset($_POST['action']) && $_POST['action'] === 'login') {
-    $input_id = $_POST['student_id'] ?? '';
-    $input_pass = $_POST['password'] ?? '';
+    $input_id = trim((string) ($_POST['student_id'] ?? ''));
+    $input_pass = (string) ($_POST['password'] ?? '');
 
-    if ($input_id === $valid_id && $input_pass === $valid_pass) {
-        $_SESSION['user_id'] = $input_id;
-        $_SESSION['logged_in'] = true;
-        header("Location: " . $_SERVER['PHP_SELF']); // Refresh to clear POST data
-        exit();
-    } else {
+    if ($input_id === '' || $input_pass === '') {
         $login_error = true;
+        $login_error_message = 'Please enter your Student ID and password.';
+    } else {
+        $conn = new mysqli('localhost', 'root', 'root', 'cnu_vpn');
+        if ($conn->connect_error) {
+            $login_error = true;
+            $login_error_message = 'Unable to reach the sign-in database. Try again later.';
+        } else {
+            $conn->set_charset('utf8mb4');
+            $password_hash = md5($input_pass);
+            $stmt = $conn->prepare('SELECT id FROM users WHERE student_id = ? AND password = ? LIMIT 1');
+            if ($stmt === false) {
+                $login_error = true;
+                $login_error_message = 'Sign-in failed. Please try again.';
+                $conn->close();
+            } else {
+                $stmt->bind_param('ss', $input_id, $password_hash);
+                $stmt->execute();
+                $stmt->bind_result($user_row_id);
+                $authenticated = $stmt->fetch();
+                $stmt->close();
+
+                if ($authenticated) {
+                    $msg = 'VPN session started for ' . $input_id;
+                    $note = $conn->prepare('INSERT INTO notifications (user_id, message) VALUES (?, ?)');
+                    if ($note) {
+                        $note->bind_param('ss', $input_id, $msg);
+                        $note->execute();
+                        $note->close();
+                    }
+
+                    $_SESSION['user_id'] = $input_id;
+                    $_SESSION['user'] = $input_id;
+                    $_SESSION['logged_in'] = true;
+
+                    $conn->close();
+                    header('Location: ' . $_SERVER['PHP_SELF']);
+                    exit;
+                }
+
+                $login_error = true;
+                $login_error_message = 'Invalid Student ID or Password. Please try again.';
+                $conn->close();
+            }
+        }
     }
 }
 
@@ -130,6 +166,38 @@ $is_logged_in = isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true
 
         /* Footer */
         .cnu-footer { background: #05080f; padding: 60px 10% 30px; border-top: 1px solid #222; }
+
+        /* About flow */
+        .about-flow { max-width: 720px; margin: 2rem auto 0; text-align: left; }
+        .about-flow ol { margin: 0; padding: 0; list-style: none; counter-reset: about-step; }
+        .about-flow li {
+            counter-increment: about-step;
+            position: relative;
+            padding: 1.25rem 1.25rem 1.25rem 3.25rem;
+            margin-bottom: 1rem;
+            background: var(--card-bg);
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.05);
+            line-height: 1.65;
+        }
+        .about-flow li::before {
+            content: counter(about-step);
+            position: absolute;
+            left: 1rem;
+            top: 1.25rem;
+            width: 1.75rem;
+            height: 1.75rem;
+            background: var(--accent-blue);
+            color: #fff;
+            font-size: 0.85rem;
+            font-weight: 700;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .about-flow li strong { color: var(--text-light); }
+        .about-flow li code { font-size: 0.9em; background: #0d131f; padding: 0.15rem 0.4rem; border-radius: 4px; }
     </style>
 </head>
 <body>
@@ -138,7 +206,8 @@ $is_logged_in = isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true
         <div class="logo" onclick="showTab('home')">CNU <span>SecureSailing</span></div>
         <ul class="nav-links">
             <li><a onclick="showTab('home')">Home</a></li>
-            <li><a onclick="showTab('config')">Manual Setup</a></li>
+            <li><a onclick="showTab('config')">WireGuard setup</a></li>
+            <li><a onclick="showTab('about')">About</a></li>
             <li><a onclick="showTab('status')">Network Health</a></li>
             <li><a onclick="showTab('security')">Security Policy</a></li>
             <li>
@@ -161,7 +230,8 @@ $is_logged_in = isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true
                     <?php if (!$is_logged_in): ?>
                         <button class="btn-main" onclick="toggleModal()">Connect Now</button>
                     <?php else: ?>
-                        <button class="btn-main" style="background: var(--success); color: #000;">✓ Connected to Tunnel</button>
+                        <button class="btn-main" style="background: var(--success); color: #000;">Signed in to portal</button>
+                        <button type="button" class="btn-main" style="margin-left: 10px;" onclick="connectVPN()">Connect VPN</button>
                     <?php endif; ?>
                     <button class="btn-secondary" onclick="runSpeedTest()">Test Latency</button>
                 </div>
@@ -196,33 +266,138 @@ $is_logged_in = isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true
             </div>
         </section>
     </div>
+    <style>
+    /* Tooltip Container */
+    .cnu-tooltip {
+        position: relative;
+        display: inline-block;
+        border-bottom: 1px dashed var(--accent-blue);
+        color: var(--accent-blue);
+        cursor: help;
+        font-weight: bold;
+    }
 
+    /* Tooltip Text (Hidden by default) */
+    .cnu-tooltip .tooltiptext {
+        visibility: hidden;
+        width: 220px;
+        background-color: #1a2234;
+        color: #fff;
+        text-align: center;
+        border-radius: 8px;
+        padding: 12px;
+        position: absolute;
+        z-index: 10;
+        bottom: 135%; 
+        left: 50%;
+        margin-left: -110px;
+        opacity: 0;
+        transition: opacity 0.3s, transform 0.3s;
+        font-size: 0.8rem;
+        font-family: sans-serif;
+        line-height: 1.4;
+        border: 1px solid var(--accent-blue);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+        transform: translateY(10px);
+    }
+
+    /* Tooltip Arrow */
+    .cnu-tooltip .tooltiptext::after {
+        content: "";
+        position: absolute;
+        top: 100%;
+        left: 50%;
+        margin-left: -5px;
+        border-width: 5px;
+        border-style: solid;
+        border-color: var(--accent-blue) transparent transparent transparent;
+    }
+
+    /* Show Tooltip on Hover */
+    .cnu-tooltip:hover .tooltiptext {
+        visibility: visible;
+        opacity: 1;
+        transform: translateY(0);
+    }
+</style>
     <div id="config-tab" class="tab-content">
-        <?php if ($is_logged_in): ?>
-            <h2>Manual Configuration</h2>
-            <p style="color:var(--cnu-silver)">Execute these commands to initialize your secure Linux tunnel.</p>
-            
-            <div class="config-terminal">
-                <div class="terminal-header">
-                    <div class="dot-red"></div><div class="dot-yellow"></div><div class="dot-green"></div>
-                    <span style="font-size: 0.75rem; color: var(--cnu-silver); margin-left: 10px;">bash — cnu-setup.sh</span>
-                </div>
-                <div class="terminal-body">
-                    <code><span class="cmd">sudo</span> apt update && sudo apt install wireguard</code><br>
-                    <code><span class="cmd">curl</span> -O https://vpn.cnu.edu/profiles/student.conf</code><br>
-                    <code><span class="cmd">sudo</span> wg-quick up ./student.conf</code><br>
-                    <code class="output">[#] Peer Handshake Successful</code><br>
-                    <code class="output">[#] Tunnel Assigned IP: 10.8.0.45</code>
-                </div>
-            </div>
-            <button class="btn-main">Download Windows Client</button>
-        <?php else: ?>
-            <div class="restricted-overlay">
-                <h2 style="color: var(--error);">Locked: Authentication Required</h2>
-                <p>Manual setup files and terminal scripts are restricted to authorized CNU students.</p>
-                <button class="btn-main" style="margin-top:20px" onclick="toggleModal()">Sign In to Unlock</button>
-            </div>
-        <?php endif; ?>
+    <h2>The WireGuard® Protocol</h2>
+    <p style="color:var(--cnu-silver); max-width: 700px; margin: 0 auto 3rem;">
+        SecureSailing uses WireGuard, a  fast VPN protocol that ensures your data to remain private.
+    </p>
+    
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; text-align: left; max-width: 900px; margin: 0 auto;">
+        
+        <div class="interactive-card" style="background: var(--card-bg); padding: 2.5rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); border-top: 4px solid var(--accent-blue); transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); cursor: default;">
+            <h3 style="color: var(--text-light); margin-bottom: 1.2rem;">Next Generation Cryptography</h3>
+            <p style="font-size: 0.95rem; margin-bottom: 1rem; color: var(--cnu-silver);">
+                Unlike other VPNs that rely on complex standards, WireGuard uses a simple method:
+            </p>
+            <ul style="font-size: 0.9rem; color: var(--text-light); list-style: none;">
+    
+                <li style="margin-bottom: 8px;"><strong style="color:var(--accent-blue);">Speed:</strong> Uses <span class="cnu-tooltip">ChaCha20<span class="tooltiptext">A high-speed stream cipher for encryption.</span></span>, 
+                <span class="cnu-tooltip">Poly1305<span class="tooltiptext">An authenticator used to ensure data integrity.</span></span>,<span class="cnu-tooltip">Curve25519<span class="tooltiptext">An elliptic curve used for fast and secure key exchanges.</span></span>for high speed and secure tunneling which uses public key authentication like SSH.</li>
+                <li style="margin-bottom: 8px;"><strong style="color:var(--accent-blue);">Simplicity:</strong> One click away from connecting to the VPN.</li>
+                <li style="margin-bottom: 8px;"><strong style="color:var(--accent-blue);">Security:</strong> Data remains private.</li>
+            </ul>
+        </div>
+
+        <div class="interactive-card" style="background: var(--card-bg); padding: 2.5rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); border-top: 4px solid var(--accent-blue); transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); cursor: default;">
+            <h3 style="color: var(--text-light); margin-bottom: 1.2rem;">Architecture</h3>
+            <h3 style="color: var(--text-light); margin-bottom: 1.2rem;">Architecture</h3>
+            <p style="font-size: 0.95rem; margin-bottom: 1rem; color: var(--cnu-silver);">
+                WireGuard operates with a "Crypto-Key Routing" design, to a simple connecting process:
+            </p>
+            <p style="font-size: 0.9rem; color: var(--text-light); margin-bottom: 1rem;">
+                <strong>Hacking Reduction:</strong> It is more secure than OpenVPN or any other VPNs.
+            </p>
+            <p style="font-size: 0.9rem; color: var(--text-light);">
+                <strong>Private Operation:</strong> The server protects the network from any hacking activities.
+            </p>
+        </div>
+    </div>
+<div style="margin-top: 4rem; text-align: center;">
+        <div style="margin-bottom: 2rem;">
+            <a href="https://www.wireguard.com/install/" target="_blank" class="btn-main" style="text-decoration: none; display: inline-flex; align-items: center; gap: 10px;">
+                Download WireGuard Client
+            </a>
+        </div>
+     </div>
+     <style>
+        .interactive-card:hover {
+            transform: translateY(-10px);
+            border-color: var(--accent-blue);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+            background: #1a2234; 
+        }
+        
+        .interactive-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 20px rgba(0, 86, 179, 0.6);
+            filter: brightness(1.1);
+        }
+
+        .interactive-btn:active {
+            transform: scale(0.98);
+        }
+    </style>
+
+</div>
+</div>
+        
+
+    <div id="about-tab" class="tab-content">
+        <h2>How this setup works</h2>
+        <p style="color:var(--cnu-silver); max-width: 640px; margin: 0.75rem auto 0;">Use your portal-issued profile with the official WireGuard app. Client labels may vary slightly by platform, but the flow is the same.</p>
+        <div class="about-flow">
+            <ol>
+                <li><strong>Download your configuration file</strong> — Save the <code>.conf</code> file from this portal after you sign in (for example through <strong>Connect VPN</strong> or your assigned download).</li>
+                <li><strong>Install the WireGuard client</strong> — Get the app for your OS from the <a href="https://www.wireguard.com/install/" target="_blank" rel="noopener noreferrer" style="color: var(--accent-blue);">official WireGuard installation page</a>.</li>
+                <li><strong>Add a tunnel</strong> — Open WireGuard and choose <strong>Add tunnel</strong> (on some clients this appears as <strong>Import tunnel(s)</strong> from file).</li>
+                <li><strong>Paste your configuration</strong> — In the tunnel editor, paste the full contents of your <code>.conf</code> file. If the client supports importing the file directly, you can use that instead of pasting.</li>
+                <li><strong>Activate</strong> — Save if prompted, then click <strong>Activate</strong> (or toggle the tunnel on) to connect.</li>
+            </ol>
+        </div>
     </div>
 
     <div id="status-tab" class="tab-content">
@@ -271,8 +446,8 @@ $is_logged_in = isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true
                 <button onclick="toggleModal()" style="background:none; border:none; color:white; font-size:1.8rem; cursor:pointer;">&times;</button>
             </div>
             <div class="modal-body">
-                <?php if ($login_error): ?>
-                    <div class="error-msg">Invalid Student ID or Password. Please try again.</div>
+                <?php if ($login_error && $login_error_message !== ''): ?>
+                    <div class="error-msg"><?php echo htmlspecialchars($login_error_message, ENT_QUOTES, 'UTF-8'); ?></div>
                 <?php endif; ?>
 
                 <form method="POST" action="<?php echo $_SERVER['PHP_SELF']; ?>">
@@ -353,6 +528,10 @@ $is_logged_in = isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true
         function toggleModal() {
             const modal = document.getElementById('loginModal');
             modal.style.display = (modal.style.display === 'flex') ? 'none' : 'flex';
+        }
+
+        function connectVPN() {
+            window.location.href = "generate_vpn.php";
         }
 
         function runSpeedTest() {
