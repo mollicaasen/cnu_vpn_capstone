@@ -206,8 +206,8 @@ $is_logged_in = isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true
         <div class="logo" onclick="showTab('home')">CNU <span>SecureSailing</span></div>
         <ul class="nav-links">
             <li><a onclick="showTab('home')">Home</a></li>
-            <li><a onclick="showTab('config')">WireGuard setup</a></li>
-            <li><a onclick="showTab('about')">About</a></li>
+            <li><a onclick="showTab('config')">About WireGuard</a></li>
+            <li><a onclick="showTab('about')">How it Works</a></li>
             <li><a onclick="showTab('status')">Network Health</a></li>
             <li><a onclick="showTab('security')">Security Policy</a></li>
             <li>
